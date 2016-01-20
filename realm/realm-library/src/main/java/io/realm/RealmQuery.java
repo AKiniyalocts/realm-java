@@ -1127,6 +1127,23 @@ public class RealmQuery<E extends RealmObject> {
         return realmResults;
     }
 
+    /**
+     * Asynchronously returns a distinct set of objects of a specific class. If the result is
+     * sorted, the first object will be returend in case of multiple occurences, otherwise it is
+     * undefined which object is returned.
+     *
+     * @param fieldName the field name.
+     * @return a non-null {@link RealmResults} containing the distinct objects.
+     * @throws IllegalArgumentException if a field name does not exist.
+     * @throws IllegalArgumentException if a field's type is not supported.
+     * @throws IllegalArgumentException if a field points linked properties.
+     * @throws UnsupportedOperationException if a field is not indexed.
+     */
+    public RealmResult<E> distinctAsync(String fieldName) {
+        RealmResults<E> realmResults;
+        return realmResults;
+    }
+
     // Aggregates
 
     // Sum
