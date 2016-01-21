@@ -19,6 +19,7 @@ package io.realm;
 
 import android.os.Handler;
 
+import java.lang.UnsupportedOperationException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Date;
@@ -1139,9 +1140,19 @@ public class RealmQuery<E extends RealmObject> {
      * @throws IllegalArgumentException if a field points linked properties.
      * @throws UnsupportedOperationException if a field is not indexed.
      */
-    public RealmResult<E> distinctAsync(String fieldName) {
-        RealmResults<E> realmResults;
-        return realmResults;
+    public RealmResults<E> distinctAsync(String fieldName) {
+        if (fieldName.contains(".")) {
+            throw new IllegalArgumentException("Distinct operation on linked properties is not supported: " + fieldName);
+        }
+        Table table = this.table.getTable();
+        long columnIndex = table.getColumnIndex(fieldName);
+        if (columnIndex == -1) {
+            throw new IllegalArgumentException(String.format("Field name '%s' does not exist.", fieldName));
+        }
+        if (!table.hasSearchIndex(columnIndex)) {
+            throw new UnsupportedOperationException(String.format("Field name '%s' must be indexed in order to use it for distinct queries.", fieldName));
+        }
+        return distinctAsync(columnIndex);
     }
 
     // Aggregates

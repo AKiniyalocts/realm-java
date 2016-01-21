@@ -590,8 +590,8 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * @throws IllegalArgumentException if a field points linked properties.
      * @throws UnsupportedOperationException if a field is not indexed.
      */
-    public RealmResult<E> distinctAsync(String fieldName) {
-        RealmResults<E> realmResults;
+    public RealmResults<E> distinctAsync(String fieldName) {
+        RealmResults<E> realmResults = null;
         return realmResults;
     }
 
