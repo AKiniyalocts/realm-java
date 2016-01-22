@@ -16,7 +16,10 @@
 
 package io.realm;
 
+import android.os.Handler;
 
+import java.lang.ref.WeakReference;
+import java.lang.UnsupportedOperationException;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,14 +30,19 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 
 import io.realm.exceptions.RealmException;
 import io.realm.internal.InvalidRow;
+import io.realm.internal.SharedGroup;
 import io.realm.internal.TableOrView;
 import io.realm.internal.TableQuery;
 import io.realm.internal.TableView;
 import io.realm.internal.Table;
 import io.realm.internal.log.RealmLog;
+import io.realm.internal.async.ArgumentsHolder;
+import io.realm.internal.async.QueryUpdateTask;
+
 import rx.Observable;
 
 /**
@@ -73,6 +81,9 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
     private final List<RealmChangeListener> listeners = new CopyOnWriteArrayList<RealmChangeListener>();
     private Future<Long> pendingQuery;
     private boolean isCompleted = false;
+
+    private final static Long INVALID_NATIVE_POINTER = 0L;
+    private ArgumentsHolder argumentsHolder;
 
     static <E extends RealmObject> RealmResults<E> createFromTableQuery(BaseRealm realm, TableQuery query, Class<E> clazz) {
         return new RealmResults<E>(realm, query, clazz);
@@ -591,9 +602,125 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * @throws UnsupportedOperationException if a field is not indexed.
      */
     public RealmResults<E> distinctAsync(String fieldName) {
-        RealmResults<E> realmResults = null;
+        realm.checkIfValid();
+        final long columnIndex = getColumnIndex(fieldName);
+        TableOrView tableOrView = getTable();
+
+        Table table;
+        if (tableOrView instanceof Table) {
+            table = (Table) tableOrView;
+        } else {
+            table = ((TableView) tableOrView).getTable();
+        }
+        if (!table.hasSearchIndex(columnIndex)) {
+            throw new UnsupportedOperationException(String.format("Field name '%s' must be indexed in order to use it for distinct queries.", fieldName));
+        }
+
+        final WeakReference<Handler> weakHandler = getWeakReferenceHandler();
+
+        // handover the query (to be used by a worker thread)
+        final long handoverQueryPointer = query.handoverQuery(realm.sharedGroupManager.getNativePointer());
+
+        // save query arguments (for future update)
+        argumentsHolder = new ArgumentsHolder(ArgumentsHolder.TYPE_DISTINCT);
+        argumentsHolder.columnIndex = columnIndex;
+
+        // we need to use the same configuration to open a background SharedGroup (i.e Realm)
+        // to perform the query
+        final RealmConfiguration realmConfiguration = realm.getConfiguration();
+
+        // prepare an empty reference of the RealmResults, so we can return it immediately (promise)
+        // then update it once the query completes in the background.
+        RealmResults<E> realmResults;
+        if (realm instanceof DynamicRealm) {
+            //noinspection unchecked
+            realmResults = (RealmResults<E>) RealmResults.createFromDynamicClass(realm, query, className);
+        } else {
+            realmResults = RealmResults.createFromTableQuery(realm, query, classSpec);
+        }
+
+        final WeakReference<RealmResults<? extends RealmObject>> weakRealmResults = realm.handlerController.addToAsyncDerivedRealmResults(realmResults, this);
+
+        final Future<Long> pendingQuery = Realm.asyncQueryExecutor.submit(new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                if (!Thread.currentThread().isInterrupted()) {
+                    SharedGroup sharedGroup = null;
+
+                    try {
+                        sharedGroup = new SharedGroup(realmConfiguration.getPath(),
+                                SharedGroup.IMPLICIT_TRANSACTION,
+                                realmConfiguration.getDurability(),
+                                realmConfiguration.getEncryptionKey());
+
+                        long handoverTableViewPointer = query.
+                                findDistinctWithHandover(sharedGroup.getNativePointer(),
+                                        sharedGroup.getNativeReplicationPointer(),
+                                        handoverQueryPointer,
+                                        columnIndex);
+
+                        QueryUpdateTask.Result result = QueryUpdateTask.Result.newRealmResultsResponse();
+                        result.updatedTableViews.put(weakRealmResults, handoverTableViewPointer);
+                        result.versionID = sharedGroup.getVersion();
+                        closeSharedGroupAndSendMessageToHandler(sharedGroup,
+                                weakHandler, HandlerController.COMPLETED_ASYNC_REALM_DERIVED_RESULTS, result);
+
+                        return handoverTableViewPointer;
+                    } catch (Exception e) {
+                        RealmLog.e(e.getMessage(), e);
+                        closeSharedGroupAndSendMessageToHandler(sharedGroup,
+                                weakHandler, HandlerController.REALM_ASYNC_BACKGROUND_EXCEPTION, new Error(e));
+
+                    } finally {
+                        if (sharedGroup != null && !sharedGroup.isClosed()) {
+                            sharedGroup.close();
+                        }
+                    }
+                } else {
+                    TableQuery.nativeCloseQueryHandover(handoverQueryPointer);
+                }
+
+                return INVALID_NATIVE_POINTER;
+            }
+        });
+
+        realmResults.setPendingQuery(pendingQuery);
         return realmResults;
     }
+
+    private WeakReference<Handler> getWeakReferenceHandler() {
+        if (realm.handler == null) {
+            throw new IllegalStateException("Your Realm is opened from a thread without a Looper." +
+                    " Async queries need a Handler to send results of your query");
+        }
+        return new WeakReference<Handler>(realm.handler); // use caller Realm's Looper
+    }
+
+    // The shared group needs to be closed before sending the message to other threads to avoid timing problems.
+    // eg.: The other thread wants to delete Realm when getting notified.
+    private void closeSharedGroupAndSendMessageToHandler(SharedGroup sharedGroup, WeakReference<Handler> weakHandler, int what, Object obj) {
+        if (sharedGroup != null) {
+            sharedGroup.close();
+        }
+        Handler handler = weakHandler.get();
+        if (handler != null && handler.getLooper().getThread().isAlive()) {
+            handler.obtainMessage(what, obj).sendToTarget();
+        }
+    }
+
+    ArgumentsHolder getArgument() {
+        return argumentsHolder;
+    }
+
+    /**
+     * Exports & handovers the query to be used by a worker thread.
+     *
+     * @return the exported handover pointer for this RealmQuery.
+     */
+    long handoverQueryPointer() {
+        return query.handoverQuery(realm.sharedGroupManager.getNativePointer());
+    }
+
 
     // Deleting
 
