@@ -18,7 +18,6 @@ package io.realm;
 
 import android.content.Context;
 import android.os.Handler;
-import android.os.HandlerThread;
 import android.os.Looper;
 import android.os.MessageQueue;
 import android.os.SystemClock;
@@ -56,6 +55,7 @@ import io.realm.rule.RunTestInLooperThread;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -81,24 +81,89 @@ public class RealmAsyncQueryTests {
     public void executeTransaction_async() throws Throwable {
         assertEquals(0, looperThread.realm.allObjects(Owner.class).size());
 
-        looperThread.realm.executeTransaction(new Realm.Transaction() {
+        looperThread.realm.executeTransactionAsync(new Realm.Transaction() {
             @Override
             public void execute(Realm realm) {
                 Owner owner = realm.createObject(Owner.class);
                 owner.setName("Owner");
             }
-        }, new Realm.Transaction.Callback() {
+        }, new Realm.Transaction.OnSuccess() {
             @Override
             public void onSuccess() {
                 assertEquals(1, looperThread.realm.allObjects(Owner.class).size());
                 assertEquals("Owner", looperThread.realm.where(Owner.class).findFirst().getName());
                 looperThread.testComplete();
             }
+        }, new Realm.Transaction.OnError() {
 
             @Override
-            public void onError(Exception e) {
-                looperThread.testComplete();;
-                fail(e.getMessage());
+            public void onError(Throwable error) {
+                looperThread.testComplete();
+                fail(error.getMessage());
+            }
+        });
+    }
+
+    @Test
+    @RunTestInLooperThread
+    public void executeTransaction_async_onSuccess() throws Throwable {
+        assertEquals(0, looperThread.realm.allObjects(Owner.class).size());
+
+        looperThread.realm.executeTransactionAsync(new Realm.Transaction() {
+            @Override
+            public void execute(Realm realm) {
+                Owner owner = realm.createObject(Owner.class);
+                owner.setName("Owner");
+            }
+        }, new Realm.Transaction.OnSuccess() {
+            @Override
+            public void onSuccess() {
+                assertEquals(1, looperThread.realm.allObjects(Owner.class).size());
+                assertEquals("Owner", looperThread.realm.where(Owner.class).findFirst().getName());
+                looperThread.testComplete();
+            }
+        });
+    }
+
+    @Test
+    @RunTestInLooperThread
+    public void executeTransaction_async_onError() throws Throwable {
+        assertEquals(0, looperThread.realm.allObjects(Owner.class).size());
+
+        looperThread.realm.executeTransactionAsync(new Realm.Transaction() {
+            @Override
+            public void execute(Realm realm) {
+                Owner owner = realm.createObject(Owner.class);
+                owner.setName("Owner");
+                realm.beginTransaction(); //Nested transaction should throw IllegalStateException
+
+            }
+        }, new Realm.Transaction.OnError() {
+            @Override
+            public void onError(Throwable error) {
+                assertEquals(0, looperThread.realm.allObjects(Owner.class).size());
+                assertNull(looperThread.realm.where(Owner.class).findFirst());
+                looperThread.testComplete();
+            }
+        });
+    }
+
+    @Test
+    @RunTestInLooperThread
+    public void executeTransaction_async_NoCallbacks() throws Throwable {
+        assertEquals(0, looperThread.realm.allObjects(Owner.class).size());
+
+        looperThread.realm.executeTransactionAsync(new Realm.Transaction() {
+            @Override
+            public void execute(Realm realm) {
+                Owner owner = realm.createObject(Owner.class);
+                owner.setName("Owner");
+                looperThread.realm.handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        looperThread.testComplete();
+                    }
+                }, 16);
             }
         });
     }
@@ -125,7 +190,7 @@ public class RealmAsyncQueryTests {
 
                     assertEquals(0, realm[0].allObjects(Owner.class).size());
 
-                    realm[0].executeTransaction(new Realm.Transaction() {
+                    realm[0].executeTransactionAsync(new Realm.Transaction() {
                         @Override
                         public void execute(Realm realm) {
                             Owner owner = realm.createObject(Owner.class);
@@ -133,7 +198,7 @@ public class RealmAsyncQueryTests {
                             realm.cancelTransaction(); // Cancel the transaction then throw
                             throw new RuntimeException("Boom");
                         }
-                    }, new Realm.Transaction.Callback() {
+                    }, new Realm.Transaction.OnSuccess() {
                         @Override
                         public void onSuccess() {
                             try {
@@ -144,9 +209,9 @@ public class RealmAsyncQueryTests {
                                 signalCallbackFinished.countDown();
                             }
                         }
-
+                    }, new Realm.Transaction.OnError() {
                         @Override
-                        public void onError(Exception e) {
+                        public void onError(Throwable error) {
                             try {
                                 // Ensure we are giving developers quality messages in the logs.
                                 assertEquals(testLogger.message, "Could not cancel transaction, not currently in a transaction.");
@@ -184,7 +249,7 @@ public class RealmAsyncQueryTests {
     @RunTestInLooperThread
     public void executeTransaction_async_realmClosedOnSuccess() {
         final AtomicInteger counter = new AtomicInteger(100);
-        final Realm realm = Realm.getInstance(looperThread.createConfiguration("testClosedBeforeAsyncTransactionSuccess"));
+        final Realm realm = Realm.getInstance(looperThread.createConfiguration("executeTransaction_async_realmClosedOnSuccess"));
         final RealmCache.Callback cacheCallback = new RealmCache.Callback() {
             @Override
             public void onResult(int count) {
@@ -195,7 +260,7 @@ public class RealmAsyncQueryTests {
                 }
             }
         };
-        final Realm.Transaction.Callback transactionCallback = new Realm.Transaction.Callback() {
+        final Realm.Transaction.OnSuccess transactionCallback = new Realm.Transaction.OnSuccess() {
             @Override
             public void onSuccess() {
                 RealmCache.invokeWithGlobalRefCount(realm.getConfiguration(), cacheCallback);
@@ -203,7 +268,7 @@ public class RealmAsyncQueryTests {
                     // Finish testing
                     return;
                 }
-                realm.executeTransaction(new Realm.Transaction() {
+                realm.executeTransactionAsync(new Realm.Transaction() {
                     @Override
                     public void execute(Realm realm) {
                     }
@@ -211,7 +276,7 @@ public class RealmAsyncQueryTests {
             }
         };
 
-        realm.executeTransaction(new Realm.Transaction() {
+        realm.executeTransactionAsync(new Realm.Transaction() {
             @Override
             public void execute(Realm realm) {
             }
@@ -223,7 +288,7 @@ public class RealmAsyncQueryTests {
     @RunTestInLooperThread
     public void executeTransaction_async_realmClosedOnError() {
         final AtomicInteger counter = new AtomicInteger(100);
-        final Realm realm = Realm.getInstance(looperThread.createConfiguration("testClosedBeforeAsyncTransactionSuccess"));
+        final Realm realm = Realm.getInstance(looperThread.createConfiguration("executeTransaction_async_realmClosedOnError"));
         final RealmCache.Callback cacheCallback = new RealmCache.Callback() {
             @Override
             public void onResult(int count) {
@@ -234,15 +299,15 @@ public class RealmAsyncQueryTests {
                 }
             }
         };
-        final Realm.Transaction.Callback transactionCallback = new Realm.Transaction.Callback() {
+        final Realm.Transaction.OnError transactionCallback = new Realm.Transaction.OnError() {
             @Override
-            public void onError(Exception e) {
+            public void onError(Throwable error) {
                 RealmCache.invokeWithGlobalRefCount(realm.getConfiguration(), cacheCallback);
                 if (counter.get() == 0) {
                     // Finish testing
                     return;
                 }
-                realm.executeTransaction(new Realm.Transaction() {
+                realm.executeTransactionAsync(new Realm.Transaction() {
                     @Override
                     public void execute(Realm realm) {
                         throw new RuntimeException("Dummy exception");
@@ -251,7 +316,7 @@ public class RealmAsyncQueryTests {
             }
         };
 
-        realm.executeTransaction(new Realm.Transaction() {
+        realm.executeTransactionAsync(new Realm.Transaction() {
             @Override
             public void execute(Realm realm) {
                 throw new RuntimeException("Dummy exception");
