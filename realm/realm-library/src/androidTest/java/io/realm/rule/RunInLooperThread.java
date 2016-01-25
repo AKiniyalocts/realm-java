@@ -115,30 +115,41 @@ public class RunInLooperThread extends TestRealmConfigurationFactory {
                     });
                     TestHelper.exitOrThrow(executorService, signalTestCompleted, signalClosedRealm, backgroundLooper, threadAssertionError);
                 } catch (Throwable error) {
+                    // These exceptions should only come from TestHelper.awaitOrFail()
                     testException = error;
                 } finally {
+                    // Try as hard as possible to close down gracefully, while still keeping all exceptions intact.
                     try {
                         after();
                     } catch (Throwable e) {
                         if (testException != null) {
-                            // after() threw an error that will mask an original error from the test case
-                            // Make sure that user is aware of that fact, but printing both errors.
+                            // Both TestHelper.awaitOrFail() and after() threw an exception. Make sure we are aware of
+                            // that fact by printing both exceptions.
                             StringWriter testStackTrace = new StringWriter();
                             testException.printStackTrace(new PrintWriter(testStackTrace));
 
                             StringWriter aftertStackTrace = new StringWriter();
                             e.printStackTrace(new PrintWriter(aftertStackTrace));
 
-                            StringBuilder errorMessage = new StringBuilder();
-                            errorMessage.append("after() threw an error that shadows a test case error");
-                            errorMessage.append('\n');
-                            errorMessage.append("== Test case exception ==\n");
-                            errorMessage.append(testStackTrace.toString());
-                            errorMessage.append('\n');
-                            errorMessage.append("== after() exception ==\n");
-                            errorMessage.append(aftertStackTrace.toString());
+                            StringBuilder errorMessage = new StringBuilder()
+                                    .append("after() threw an error that shadows a test case error")
+                                    .append('\n')
+                                    .append("== Test case exception ==\n")
+                                    .append(testStackTrace.toString())
+                                    .append('\n')
+                                    .append("== after() exception ==\n")
+                                    .append(aftertStackTrace.toString());
                             fail(errorMessage.toString());
+                        } else {
+                            // Only after() threw an exception
+                            throw e;
                         }
+                    }
+
+                    // Only TestHelper.awaitOrFail() threw an exception
+                    if (testException != null) {
+                        //noinspection ThrowFromFinallyBlock
+                        throw testException;
                     }
                 }
             }
