@@ -127,6 +127,35 @@ static jlong getDistinctViewWithHandover
     return 0;
 }
 
+static jlong findAllAndGetDistinctViewWithHandover
+        (JNIEnv *env, jlong bgSharedGroupPtr, std::unique_ptr<Query> query, jlong start, jlong end, jlong limit, jlong columnIndex)
+{
+    TableRef table = query->get_table();
+    if (!QUERY_VALID(env, query.get()))
+        return 0;
+    if(!TBL_AND_COL_INDEX_VALID(env, table.get(), columnIndex))
+        return 0;
+    if(!ROW_INDEXES_VALID(env, table.get(), start, end, limit))
+        return 0;
+    switch (table->get_column_type(S(columnIndex))) {
+        case type_Bool:
+        case type_Int:
+        case type_DateTime:
+        case type_String: {
+            TableView tableView( query->find_all(S(start), S(end), S(limit)) );
+            tableView.distinct(S(columnIndex));
+            // handover the result
+            std::unique_ptr<SharedGroup::Handover<TableView>> handover = SG(
+                    bgSharedGroupPtr)->export_for_handover(tableView, MutableSourcePayload::Move);
+            return reinterpret_cast<jlong>(handover.release());
+        }
+        default:
+            ThrowException(env, IllegalArgument, "Invalid type - Only String, Date, boolean, byte, short, int, long and their boxed variants are supported.");
+            return 0;
+    }
+    return 0;
+}
+
 static jlong findAllSortedWithHandover
         (JNIEnv *env, jlong bgSharedGroupPtr, std::unique_ptr<Query> query, jlong start, jlong end, jlong limit, jlong columnIndex, jboolean ascending)
 {
@@ -1248,6 +1277,17 @@ JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeGetDistinctViewW
     try {
         std::unique_ptr<Query> query = getHandoverQuery(bgSharedGroupPtr, replicationPtr, queryPtr);
         return getDistinctViewWithHandover(env, bgSharedGroupPtr, std::move(query), columnIndex);
+    } CATCH_STD()
+    return 0;
+}
+
+JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeFindAllAndGetDistinctViewWithHandover
+        (JNIEnv *env, jobject, jlong bgSharedGroupPtr, jlong replicationPtr, jlong queryPtr, jlong start, jlong end, jlong limit, jlong columnIndex)
+{
+    TR_ENTER()
+    try {
+        std::unique_ptr<Query> query = getHandoverQuery(bgSharedGroupPtr, replicationPtr, queryPtr);
+        return findAllAndGetDistinctViewWithHandover(env, bgSharedGroupPtr, std::move(query), start, end, limit, columnIndex);
     } CATCH_STD()
     return 0;
 }
