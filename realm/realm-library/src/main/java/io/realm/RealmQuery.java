@@ -1159,7 +1159,7 @@ public class RealmQuery<E extends RealmObject> {
         final long handoverQueryPointer = query.handoverQuery(realm.sharedGroupManager.getNativePointer());
 
         // save query arguments (for future update)
-        argumentsHolder = new ArgumentsHolder(ArgumentsHolder.TYPE_DISTINCT);
+        argumentsHolder = new ArgumentsHolder(ArgumentsHolder.TYPE_FIND_AND_GET_DISTINCT_VIEW);
         argumentsHolder.columnIndex = columnIndex;
 
         // we need to use the same configuration to open a background SharedGroup (i.e Realm)

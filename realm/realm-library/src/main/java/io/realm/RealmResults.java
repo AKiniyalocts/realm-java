@@ -622,7 +622,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
         final long handoverQueryPointer = query.handoverQuery(realm.sharedGroupManager.getNativePointer());
 
         // save query arguments (for future update)
-        argumentsHolder = new ArgumentsHolder(ArgumentsHolder.TYPE_DISTINCT);
+        argumentsHolder = new ArgumentsHolder(ArgumentsHolder.TYPE_FIND_AND_GET_DISTINCT_VIEW);
         argumentsHolder.columnIndex = columnIndex;
 
         // we need to use the same configuration to open a background SharedGroup (i.e Realm)
@@ -639,7 +639,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
             realmResults = RealmResults.createFromTableQuery(realm, query, classSpec);
         }
 
-        final WeakReference<RealmResults<? extends RealmObject>> weakRealmResults = realm.handlerController.addToAsyncDerivedRealmResults(realmResults, this);
+        final WeakReference<RealmResults<? extends RealmObject>> weakRealmResults = realm.handlerController.addToAsyncRealmResults(realmResults, this);
 
         final Future<Long> pendingQuery = Realm.asyncQueryExecutor.submit(new Callable<Long>() {
             @Override
@@ -654,7 +654,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
                                 realmConfiguration.getEncryptionKey());
 
                         long handoverTableViewPointer = query.
-                                findDistinctWithHandover(sharedGroup.getNativePointer(),
+                                findDistinctViewWithHandover(sharedGroup.getNativePointer(),
                                         sharedGroup.getNativeReplicationPointer(),
                                         handoverQueryPointer,
                                         columnIndex);
@@ -663,7 +663,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
                         result.updatedTableViews.put(weakRealmResults, handoverTableViewPointer);
                         result.versionID = sharedGroup.getVersion();
                         closeSharedGroupAndSendMessageToHandler(sharedGroup,
-                                weakHandler, HandlerController.COMPLETED_ASYNC_REALM_DERIVED_RESULTS, result);
+                                weakHandler, HandlerController.COMPLETED_ASYNC_REALM_RESULTS, result);
 
                         return handoverTableViewPointer;
                     } catch (Exception e) {

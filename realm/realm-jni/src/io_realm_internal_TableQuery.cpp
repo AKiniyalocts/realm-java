@@ -127,7 +127,7 @@ static jlong getDistinctViewWithHandover
     return 0;
 }
 
-static jlong findAllAndGetDistinctViewWithHandover
+static jlong findAndGetDistinctViewWithHandover
         (JNIEnv *env, jlong bgSharedGroupPtr, std::unique_ptr<Query> query, jlong start, jlong end, jlong limit, jlong columnIndex)
 {
     TableRef table = query->get_table();
@@ -144,7 +144,6 @@ static jlong findAllAndGetDistinctViewWithHandover
         case type_String: {
             TableView tableView( query->find_all(S(start), S(end), S(limit)) );
             tableView.distinct(S(columnIndex));
-            // handover the result
             std::unique_ptr<SharedGroup::Handover<TableView>> handover = SG(
                     bgSharedGroupPtr)->export_for_handover(tableView, MutableSourcePayload::Move);
             return reinterpret_cast<jlong>(handover.release());
@@ -1156,7 +1155,7 @@ JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeFindAllWithHando
 
 
 // Should match the values in Java ArgumentsHolder class
-enum query_type {QUERY_TYPE_FIND_ALL = 0, QUERY_TYPE_DISTINCT = 4, QUERY_TYPE_FIND_ALL_SORTED = 1, QUERY_TYPE_FIND_ALL_MULTI_SORTED = 2};
+enum query_type {QUERY_TYPE_FIND_ALL = 0, QUERY_TYPE_DISTINCT = 4, QUERY_TYPE_FIND_ALL_SORTED = 1, QUERY_TYPE_FIND_ALL_MULTI_SORTED = 2, QUERY_TYPE_FIND_AND_GET_DISTINCT_VIEW = 5};
 
 // batch update of async queries
 JNIEXPORT jlongArray JNICALL Java_io_realm_internal_TableQuery_nativeBatchUpdateQueries
@@ -1220,6 +1219,18 @@ JNIEXPORT jlongArray JNICALL Java_io_realm_internal_TableQuery_nativeBatchUpdate
                                      query_param_array[1]/*columnIndex*/);
                     break;
                 }
+                case QUERY_TYPE_FIND_AND_GET_DISTINCT_VIEW: {// nativeFindAllAndGetDistinctViewWithHandover
+                    exported_handover_tableview_array[i] =
+                            findAndGetDistinctViewWithHandover
+                                    (env,
+                                     bgSharedGroupPtr,
+                                     std::move(queries[i]),
+                                     query_param_array[1]/*start*/,
+                                     query_param_array[2]/*end*/,
+                                     query_param_array[3]/*limit*/,
+                                     query_param_array[4]/*columnIndex*/);
+                    break;
+                }
                 case QUERY_TYPE_FIND_ALL_SORTED: {// nativeFindAllSortedWithHandover
                     exported_handover_tableview_array[i] =
                             findAllSortedWithHandover
@@ -1281,13 +1292,13 @@ JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeGetDistinctViewW
     return 0;
 }
 
-JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeFindAllAndGetDistinctViewWithHandover
+JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeFindAndGetDistinctViewWithHandover
         (JNIEnv *env, jobject, jlong bgSharedGroupPtr, jlong replicationPtr, jlong queryPtr, jlong start, jlong end, jlong limit, jlong columnIndex)
 {
     TR_ENTER()
     try {
         std::unique_ptr<Query> query = getHandoverQuery(bgSharedGroupPtr, replicationPtr, queryPtr);
-        return findAllAndGetDistinctViewWithHandover(env, bgSharedGroupPtr, std::move(query), start, end, limit, columnIndex);
+        return findAndGetDistinctViewWithHandover(env, bgSharedGroupPtr, std::move(query), start, end, limit, columnIndex);
     } CATCH_STD()
     return 0;
 }

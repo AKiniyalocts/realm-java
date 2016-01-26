@@ -396,7 +396,7 @@ JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeGetDistinctViewW
  * Method:    nativeFindAllAndGetDistinctViewWithHandover
  * Signature: (JJJJJJJ)J
  */
-JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeFindAllAndGetDistinctViewWithHandover
+JNIEXPORT jlong JNICALL Java_io_realm_internal_TableQuery_nativeFindAndGetDistinctViewWithHandover
         (JNIEnv *, jobject, jlong, jlong, jlong, jlong, jlong, jlong, jlong);
 
 /*

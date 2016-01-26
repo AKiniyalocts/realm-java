@@ -27,6 +27,7 @@ public class ArgumentsHolder {
     public final static int TYPE_FIND_ALL_MULTI_SORTED = 2;
     public final static int TYPE_FIND_FIRST = 3;
     public final static int TYPE_DISTINCT = 4;
+    public final static int TYPE_FIND_AND_GET_DISTINCT_VIEW = 5;
 
     public final int type;
     public long columnIndex;

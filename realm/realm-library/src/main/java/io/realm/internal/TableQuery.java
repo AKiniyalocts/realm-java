@@ -501,7 +501,7 @@ public class TableQuery implements Closeable {
         validateQuery();
         // Execute the disposal of abandoned realm objects each time a new realm object is created
         context.executeDelayedDisposal();
-        return nativeFindAllAndGetDistinctViewWithHandover(bgSharedGroupPtr, nativeReplicationPtr, ptrQuery, 0, Table.INFINITE, Table.INFINITE, columnIndex);
+        return nativeFindAndGetDistinctViewWithHandover(bgSharedGroupPtr, nativeReplicationPtr, ptrQuery, 0, Table.INFINITE, Table.INFINITE, columnIndex);
     }
 
     public long findAllSortedWithHandover(long bgSharedGroupPtr, long nativeReplicationPtr, long ptrQuery, long columnIndex, Sort sortOrder) {
@@ -820,7 +820,7 @@ public class TableQuery implements Closeable {
     public static native long nativeFindAllSortedWithHandover(long bgSharedGroupPtr, long nativeReplicationPtr, long nativeQueryPtr, long start, long end, long limit, long columnIndex, boolean ascending);
     public static native long nativeFindAllWithHandover(long bgSharedGroupPtr, long nativeReplicationPtr, long nativeQueryPtr, long start, long end, long limit);
     public static native long nativeGetDistinctViewWithHandover(long bgSharedGroupPtr, long nativeReplicationPtr, long nativeQueryPtr, long columnIndex);
-    public static native long nativeFindAllAndGetDistinctViewWithHandover(long bgSharedGroupPtr, long nativeReplicationPtr, long nativeQueryPtr, long start, long end, long limit, long columnIndex);
+    public static native long nativeFindAndGetDistinctViewWithHandover(long bgSharedGroupPtr, long nativeReplicationPtr, long nativeQueryPtr, long start, long end, long limit, long columnIndex);
     public static native long nativeFindWithHandover(long bgSharedGroupPtr, long nativeReplicationPtr, long nativeQueryPtr, long fromTableRow);
     public static native long nativeFindAllMultiSortedWithHandover(long bgSharedGroupPtr, long nativeReplicationPtr, long nativeQueryPtr, long start, long end, long limit, long[] columnIndices, boolean[] ascending);
     public static native long nativeImportHandoverRowIntoSharedGroup(long handoverRowPtr, long callerSharedGroupPtr);
