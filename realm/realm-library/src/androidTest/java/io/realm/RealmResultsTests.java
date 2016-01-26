@@ -16,6 +16,8 @@
 
 package io.realm;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.support.test.runner.AndroidJUnit4;
 
 import org.junit.After;
@@ -28,6 +30,7 @@ import org.junit.runner.RunWith;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -58,6 +61,7 @@ public class RealmResultsTests {
     private final static int TEST_DATA_FIRST_HALF = 2 * (TEST_DATA_SIZE / 4) - 1;
     private final static int TEST_DATA_LAST_HALF = 2 * (TEST_DATA_SIZE / 4) + 1;
     private final static long YEAR_MILLIS = TimeUnit.DAYS.toMillis(365);
+    private final static long DECADE_MILLIS = 10 * TimeUnit.DAYS.toMillis(365);
 
     @Rule
     public final TestRealmConfigurationFactory configFactory = new TestRealmConfigurationFactory();
@@ -1270,11 +1274,11 @@ public class RealmResultsTests {
     }
 
     // RealmResults.distinct(): requires indexing, and type = boolean, integer, date, string
-    private void populateForDistinct(Realm realm, long numberOfBlocks, long numberOfObjects, boolean withNull) {
-        realm.beginTransaction();
+    private void populateForDistinct(Realm testRealm, long numberOfBlocks, long numberOfObjects, boolean withNull) {
+        testRealm.beginTransaction();
         for (int i = 0; i < numberOfObjects * numberOfBlocks; i++) {
             for (int j = 0; j < numberOfBlocks; j++) {
-                AnnotationIndexTypes obj = realm.createObject(AnnotationIndexTypes.class);
+                AnnotationIndexTypes obj = testRealm.createObject(AnnotationIndexTypes.class);
                 obj.setIndexBoolean(j % 2 == 0);
                 obj.setIndexLong(j);
                 obj.setIndexDate(withNull ? null : new Date(1000 * (long) j));
@@ -1285,15 +1289,15 @@ public class RealmResultsTests {
                 obj.setNotIndexString(withNull ? null : "Test " + j);
             }
         }
-        realm.commitTransaction();
+        testRealm.commitTransaction();
     }
 
-    private void populateForDistinctInvalidTypesLinked(Realm realm) {
-        realm.beginTransaction();
+    private void populateForDistinctInvalidTypesLinked(Realm testRealm) {
+        testRealm.beginTransaction();
         AllJavaTypes notEmpty = new AllJavaTypes();
         notEmpty.setFieldBinary(new byte[]{1, 2, 3});
-        realm.copyToRealm(notEmpty);
-        realm.commitTransaction();
+        testRealm.copyToRealm(notEmpty);
+        testRealm.commitTransaction();
     }
 
     @Test
@@ -1402,5 +1406,265 @@ public class RealmResultsTests {
             fail("Unsupported columnBinary linked field");
         } catch (IllegalArgumentException ignored) {
         }
+    }
+
+    // distinctAsync
+    private Realm openRealmInstance(String name) {
+        RealmConfiguration config = configFactory.createConfiguration(name);
+        Realm.deleteRealm(config);
+        return Realm.getInstance(config);
+    }
+
+    private void populateTestRealm(Realm testRealm, int objects) {
+        testRealm.beginTransaction();
+        testRealm.allObjects(AllTypes.class).clear();
+        testRealm.allObjects(NonLatinFieldNames.class).clear();
+        for (int i = 0; i < objects; ++i) {
+            AllTypes allTypes = testRealm.createObject(AllTypes.class);
+            allTypes.setColumnBoolean((i % 3) == 0);
+            allTypes.setColumnBinary(new byte[]{1, 2, 3});
+            allTypes.setColumnDate(new Date(DECADE_MILLIS * (i - (objects / 2))));
+            allTypes.setColumnDouble(3.1415);
+            allTypes.setColumnFloat(1.234567f + i);
+            allTypes.setColumnString("test data " + i);
+            allTypes.setColumnLong(i);
+            NonLatinFieldNames nonLatinFieldNames = testRealm.createObject(NonLatinFieldNames.class);
+            nonLatinFieldNames.set델타(i);
+            nonLatinFieldNames.setΔέλτα(i);
+            nonLatinFieldNames.set베타(1.234567f + i);
+            nonLatinFieldNames.setΒήτα(1.234567f + i);
+        }
+        testRealm.commitTransaction();
+    }
+
+    @Test
+    public void distinctAsync() throws Throwable {
+        final CountDownLatch signalCallbackFinished = new CountDownLatch(4);
+        final CountDownLatch signalClosedRealm = new CountDownLatch(1);
+        final Throwable[] threadAssertionError = new Throwable[1];
+        final Looper[] backgroundLooper = new Looper[1];
+        final ExecutorService executorService = Executors.newSingleThreadExecutor();
+        executorService.submit(new Runnable() {
+            @Override
+            public void run() {
+                Looper.prepare();
+                backgroundLooper[0] = Looper.myLooper();
+
+                Realm asyncRealm = null;
+                try {
+                    asyncRealm = openRealmInstance("testDistinctAsyncResults");
+                    final long numberOfBlocks = 25;
+                    final long numberOfObjects = 10;
+                    populateForDistinct(asyncRealm, numberOfBlocks, numberOfObjects, false);
+
+                    RealmResults<AnnotationIndexTypes> allBool = asyncRealm.where(AnnotationIndexTypes.class).findAll();
+                    RealmResults<AnnotationIndexTypes> allLong = asyncRealm.where(AnnotationIndexTypes.class).findAll();
+                    RealmResults<AnnotationIndexTypes> allDate = asyncRealm.where(AnnotationIndexTypes.class).findAll();
+                    RealmResults<AnnotationIndexTypes> allString = asyncRealm.where(AnnotationIndexTypes.class).findAll();
+
+                    Realm.asyncQueryExecutor.pause();
+
+                    final RealmResults<AnnotationIndexTypes> distinctBool = allBool.distinctAsync("indexBoolean");
+                    final RealmResults<AnnotationIndexTypes> distinctLong = allBool.distinctAsync("indexLong");
+                    final RealmResults<AnnotationIndexTypes> distinctDate = allBool.distinctAsync("indexDate");
+                    final RealmResults<AnnotationIndexTypes> distinctString = allBool.distinctAsync("indexString");
+
+                    assertFalse(distinctBool.isLoaded());
+                    assertTrue(distinctBool.isValid());
+                    assertTrue(distinctBool.isEmpty());
+
+                    assertFalse(distinctLong.isLoaded());
+                    assertTrue(distinctLong.isValid());
+                    assertTrue(distinctLong.isEmpty());
+
+                    assertFalse(distinctDate.isLoaded());
+                    assertTrue(distinctDate.isValid());
+                    assertTrue(distinctDate.isEmpty());
+
+                    assertFalse(distinctString.isLoaded());
+                    assertTrue(distinctString.isValid());
+                    assertTrue(distinctString.isEmpty());
+
+                    Realm.asyncQueryExecutor.resume();
+
+                    distinctBool.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            assertEquals("distinctBool", 2, distinctBool.size());
+                            signalCallbackFinished.countDown();
+                        }
+                    });
+
+                    distinctLong.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            assertEquals("distinctLong", numberOfBlocks, distinctLong.size());
+                            signalCallbackFinished.countDown();
+                        }
+                    });
+
+                    distinctDate.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            assertEquals("distinctDate", numberOfBlocks, distinctDate.size());
+                            signalCallbackFinished.countDown();
+                        }
+                    });
+
+                    distinctString.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            assertEquals("distinctString", numberOfBlocks, distinctString.size());
+                            signalCallbackFinished.countDown();
+                        }
+                    });
+                    Looper.loop();
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                    threadAssertionError[0] = e;
+
+                } finally {
+                    if (signalCallbackFinished.getCount() > 0) {
+                        signalCallbackFinished.countDown();
+                    }
+                    if (asyncRealm != null) {
+                        asyncRealm.close();
+                    }
+                    signalClosedRealm.countDown();
+                }
+            }
+        });
+
+        TestHelper.exitOrThrow(executorService, signalCallbackFinished, signalClosedRealm, backgroundLooper, threadAssertionError);
+    }
+
+    @Test
+    public void distinctAsync_withNull () throws Throwable {
+        final CountDownLatch signalCallbackFinished = new CountDownLatch(2);
+        final CountDownLatch signalClosedRealm = new CountDownLatch(1);
+        final Throwable[] threadAssertionError = new Throwable[1];
+        final Looper[] backgroundLooper = new Looper[1];
+        final ExecutorService executorService = Executors.newSingleThreadExecutor();
+        executorService.submit(new Runnable() {
+            @Override
+            public void run() {
+                Looper.prepare();
+                backgroundLooper[0] = Looper.myLooper();
+
+                Realm asyncRealm = null;
+                try {
+                    Realm.asyncQueryExecutor.pause();
+                    asyncRealm = openRealmInstance("testDistinctAsyncResultsWithNull");
+                    final long numberOfBlocks = 25;
+                    final long numberOfObjects = 10;
+                    populateForDistinct(asyncRealm, numberOfBlocks, numberOfObjects, true);
+
+                    final RealmResults<AnnotationIndexTypes> distinctDate = asyncRealm.where(AnnotationIndexTypes.class).findAll().distinctAsync("indexDate");
+                    final RealmResults<AnnotationIndexTypes> distinctString = asyncRealm.where(AnnotationIndexTypes.class).findAll().distinctAsync("indexString");
+
+                    assertFalse(distinctDate.isLoaded());
+                    assertTrue(distinctDate.isValid());
+                    assertTrue(distinctDate.isEmpty());
+
+                    assertFalse(distinctString.isLoaded());
+                    assertTrue(distinctString.isValid());
+                    assertTrue(distinctString.isEmpty());
+
+                    Realm.asyncQueryExecutor.resume();
+
+                    distinctDate.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            assertEquals("distinctDate", 1, distinctDate.size());
+                            signalCallbackFinished.countDown();
+                        }
+                    });
+
+                    distinctString.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            assertEquals("distinctString", 1, distinctString.size());
+                            signalCallbackFinished.countDown();
+                        }
+                    });
+
+                    Looper.loop();
+                } catch (Throwable e) {
+                    e.printStackTrace();
+                    threadAssertionError[0] = e;
+
+                } finally {
+                    if (signalCallbackFinished.getCount() > 0) {
+                        signalCallbackFinished.countDown();
+                    }
+                    if (asyncRealm != null) {
+                        asyncRealm.close();
+                    }
+                    signalClosedRealm.countDown();
+                }
+            }
+        });
+
+        TestHelper.exitOrThrow(executorService, signalCallbackFinished, signalClosedRealm, backgroundLooper, threadAssertionError);
+    }
+
+    @Test
+    public void distinctAsync_notIndexedFields() {
+        final long numberOfBlocks = 25;
+        final long numberOfObjects = 10;
+        populateForDistinct(realm, numberOfBlocks, numberOfObjects, false);
+
+        for (String fieldName : new String[]{"Boolean", "Long", "Date", "String"}) {
+            try {
+                realm.where(AnnotationIndexTypes.class).findAll().distinctAsync("notIndex" + fieldName);
+                fail("notIndex" + fieldName);
+            } catch (UnsupportedOperationException ignored) {
+            }
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void distinctAsync_doesNotExist() {
+        final long numberOfBlocks = 25;
+        final long numberOfObjects = 10;
+        populateForDistinct(realm, numberOfBlocks, numberOfObjects, false);
+
+        realm.where(AnnotationIndexTypes.class).findAll().distinctAsync("doesNotExist");
+    }
+
+    @Test
+    public void distinctAsync_invalidTypes() {
+        final long numberOfBlocks = 25;
+        final long numberOfObjects = 10;
+        populateTestRealm(realm, TEST_DATA_SIZE);
+
+        for (String field : new String[]{"columnRealmObject", "columnRealmList", "columnDouble", "columnFloat"}) {
+            try {
+                realm.where(AllTypes.class).findAll().distinctAsync(field);
+            } catch (UnsupportedOperationException ignored) {
+            }
+        }
+    }
+
+    @Test
+    public void distinctAsync_indexedLinkedFields() {
+        final long numberOfBlocks = 25;
+        final long numberOfObjects = 10;
+        populateForDistinct(realm, numberOfBlocks, numberOfObjects, false);
+
+        for (String fieldName : new String[]{"Boolean", "Long", "Date", "String"}) {
+            try {
+                realm.where(AnnotationIndexTypes.class).findAll().distinctAsync(AnnotationIndexTypes.FIELD_OBJECT + ".index" + fieldName);
+                fail("Unsupported Index" + fieldName + " linked field");
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void distinctAsync_notIndexedLinkedFields() {
+        populateForDistinctInvalidTypesLinked(realm);
+
+        realm.where(AllJavaTypes.class).findAll().distinctAsync(AllJavaTypes.FIELD_OBJECT + ".columnBinary");
     }
 }
