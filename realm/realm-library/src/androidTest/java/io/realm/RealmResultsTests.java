@@ -37,6 +37,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import dalvik.annotation.TestTarget;
 import io.realm.entities.AllJavaTypes;
 import io.realm.entities.AllTypes;
 import io.realm.entities.AnnotationIndexTypes;
@@ -46,6 +47,8 @@ import io.realm.entities.NonLatinFieldNames;
 import io.realm.entities.NullTypes;
 import io.realm.entities.Owner;
 import io.realm.rule.TestRealmConfigurationFactory;
+import io.realm.rule.RunInLooperThread;
+import io.realm.rule.RunTestInLooperThread;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -67,6 +70,8 @@ public class RealmResultsTests {
     public final TestRealmConfigurationFactory configFactory = new TestRealmConfigurationFactory();
     @Rule
     public final ExpectedException thrown = ExpectedException.none();
+    @Rule
+    public final RunInLooperThread looperThread = new RunInLooperThread();
 
     private  Realm realm;
 
@@ -1436,7 +1441,7 @@ public class RealmResultsTests {
         }
         testRealm.commitTransaction();
     }
-
+/*
     @Test
     public void distinctAsync() throws Throwable {
         final CountDownLatch signalCallbackFinished = new CountDownLatch(4);
@@ -1537,7 +1542,7 @@ public class RealmResultsTests {
 
         TestHelper.exitOrThrow(executorService, signalCallbackFinished, signalClosedRealm, backgroundLooper, threadAssertionError);
     }
-
+*/
     @Test
     public void distinctAsync_withNull () throws Throwable {
         final CountDownLatch signalCallbackFinished = new CountDownLatch(2);
@@ -1560,18 +1565,9 @@ public class RealmResultsTests {
                     populateForDistinct(asyncRealm, numberOfBlocks, numberOfObjects, true);
 
                     final RealmResults<AnnotationIndexTypes> distinctDate = asyncRealm.where(AnnotationIndexTypes.class).findAll().distinctAsync("indexDate");
-                    final RealmResults<AnnotationIndexTypes> distinctString = asyncRealm.where(AnnotationIndexTypes.class).findAll().distinctAsync("indexString");
-
                     assertFalse(distinctDate.isLoaded());
                     assertTrue(distinctDate.isValid());
                     assertTrue(distinctDate.isEmpty());
-
-                    assertFalse(distinctString.isLoaded());
-                    assertTrue(distinctString.isValid());
-                    assertTrue(distinctString.isEmpty());
-
-                    Realm.asyncQueryExecutor.resume();
-
                     distinctDate.addChangeListener(new RealmChangeListener() {
                         @Override
                         public void onChange() {
@@ -1580,6 +1576,13 @@ public class RealmResultsTests {
                         }
                     });
 
+                    RealmResults<AnnotationIndexTypes> allStrings = asyncRealm.where(AnnotationIndexTypes.class).findAll();
+                    assertEquals("allStrings", numberOfBlocks * numberOfBlocks * numberOfObjects, allStrings.size());
+
+                    final RealmResults<AnnotationIndexTypes> distinctString = allStrings.distinctAsync("indexString");
+                    assertFalse(distinctString.isLoaded());
+                    assertTrue(distinctString.isValid());
+                    assertTrue(distinctString.isEmpty());
                     distinctString.addChangeListener(new RealmChangeListener() {
                         @Override
                         public void onChange() {
@@ -1588,6 +1591,7 @@ public class RealmResultsTests {
                         }
                     });
 
+                    Realm.asyncQueryExecutor.resume();
                     Looper.loop();
                 } catch (Throwable e) {
                     e.printStackTrace();
@@ -1606,6 +1610,29 @@ public class RealmResultsTests {
         });
 
         TestHelper.exitOrThrow(executorService, signalCallbackFinished, signalClosedRealm, backgroundLooper, threadAssertionError);
+    }
+
+    @Test
+    @RunTestInLooperThread
+    public void distinctAsync_withSingleNullField() {
+        Realm.asyncQueryExecutor.pause();
+        final long numberOfBlocks = 25;
+        final long numberOfObjects = 10;
+        populateForDistinct(looperThread.realm, numberOfBlocks, numberOfObjects, true);
+
+        final RealmResults<AnnotationIndexTypes> distinctDate = looperThread.realm.where(AnnotationIndexTypes.class).findAll().distinctAsync("indexDate");
+        assertFalse(distinctDate.isLoaded());
+        assertTrue(distinctDate.isValid());
+        assertTrue(distinctDate.isEmpty());
+        distinctDate.addChangeListener(new RealmChangeListener() {
+            @Override
+            public void onChange() {
+                assertEquals("distinctDate", 1, distinctDate.size());
+                looperThread.testComplete();
+            }
+        });
+
+        Realm.asyncQueryExecutor.resume();
     }
 
     @Test
