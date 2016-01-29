@@ -1,6 +1,7 @@
 0.88.0
  * BREAKING CHANGE: DynamicRealm.executeTransaction() now directly throws any RuntimeException instead of wrapping it in a RealmException (#1682).
  * BREAKING CHANGE: DynamicRealm.executeTransaction() now throws IllegalArgumentException instead of silently accepting a null Transaction object.
+ * Deprecated method: Realm.executeTransaction(Transaction,Transaction.Callback) use Realm.executeTransactionAsync(Transaction), Realm.executeTransactionAsync(Transaction,Realm.Transaction.OnSuccess), Realm.executeTransactionAsync(Transaction, final Realm.Transaction.OnError) or executeTransactionAsync(Transaction, Realm.Transaction.OnSuccess,Realm.Transaction.OnError) instead.
  * Fixed an error occurring during test and connectedCheck of unit test example (#1934).
  * Fixed bug in jsonExample (#2092).
  * Added RealmQuery.isNotEmpty() (#2025). (Thank you @stk1m1)
