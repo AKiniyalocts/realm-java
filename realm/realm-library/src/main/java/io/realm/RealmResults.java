@@ -607,7 +607,12 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * @throws UnsupportedOperationException if a field is not indexed.
      */
     public RealmResults<E> distinctAsync(String fieldName) {
-        return where().distinctAsync(fieldName);
+        realm.checkIfValid();
+
+        if (!syncToCheckIfValid("Calling where on RealmResults whose parent RealmList has been deleted already.")) {
+            throw new IllegalStateException("The RealmList which this RealmResults is created on has been deleted.");
+        }
+        return RealmQuery.createQueryFromResultView(this, this.table).distinctAsync(fieldName);
     }
 
     // Deleting

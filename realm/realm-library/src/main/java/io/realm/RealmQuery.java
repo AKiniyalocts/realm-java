@@ -112,6 +112,15 @@ public class RealmQuery<E extends RealmObject> {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    static <E extends RealmObject> RealmQuery<E> createQueryFromResultView(RealmResults<E> queryResults, TableOrView table) {
+        if (queryResults.classSpec != null) {
+            return new RealmQuery<E>(queryResults, table, queryResults.classSpec);
+        } else {
+            return new RealmQuery(queryResults, table, queryResults.className);
+        }
+    }
+
     /**
      * Creates a query from a existing {@link RealmList}.
      *
@@ -178,6 +187,23 @@ public class RealmQuery<E extends RealmObject> {
         this.view = view;
         this.schema = realm.schema.getSchemaForClass(className);
         this.table = schema.table;
+    }
+
+    private RealmQuery(RealmResults<DynamicRealmObject> queryResults, TableOrView table, String className) {
+        this.realm = queryResults.realm;
+        this.className = className;
+        this.schema = realm.schema.getSchemaForClass(className);
+        this.table = table;
+        this.query = table.where();
+    }
+
+    private RealmQuery(RealmResults<E> queryResults, TableOrView table, Class<E> clazz) {
+        this.realm = queryResults.realm;
+        this.clazz = clazz;
+        this.schema = realm.schema.getSchemaForClass(clazz);
+        this.table = table;
+        this.view = null;
+        this.query = table.where();
     }
 
     /**
@@ -1145,12 +1171,12 @@ public class RealmQuery<E extends RealmObject> {
         if (fieldName.contains(".")) {
             throw new IllegalArgumentException("Distinct operation on linked properties is not supported: " + fieldName);
         }
-        Table table = this.table.getTable();
-        final long columnIndex = table.getColumnIndex(fieldName);
+        Table tbl = this.table.getTable();
+        final long columnIndex = tbl.getColumnIndex(fieldName);
         if (columnIndex == -1) {
             throw new IllegalArgumentException(String.format("Field name '%s' does not exist.", fieldName));
         }
-        if (!table.hasSearchIndex(columnIndex)) {
+        if (!tbl.hasSearchIndex(columnIndex)) {
             throw new UnsupportedOperationException(String.format("Field name '%s' must be indexed in order to use it for distinct queries.", fieldName));
         }
 
