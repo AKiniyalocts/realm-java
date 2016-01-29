@@ -1072,6 +1072,7 @@ public final class Realm extends BaseRealm {
      * @param callback optional, to receive the result of this query.
      * @return a {@link RealmAsyncTask} representing a cancellable task.
      * @throws IllegalArgumentException if the {@code transaction} is {@code null}, or if the realm is opened from another thread.
+     * @deprecated replaced by {@link #executeTransactionAsync(Transaction)}, {@link #executeTransactionAsync(Transaction, Transaction.OnSuccess)}, {@link #executeTransactionAsync(Transaction, io.realm.Realm.Transaction.OnError)} and {@link #executeTransactionAsync(Transaction, Transaction.OnSuccess, Transaction.OnError)}.
      */
     @Deprecated
     public RealmAsyncTask executeTransaction(final Transaction transaction, final Transaction.Callback callback) {
@@ -1082,7 +1083,7 @@ public final class Realm extends BaseRealm {
         // we can use to deliver the result
         if (callback != null && handler == null) {
             throw new IllegalStateException("Your Realm is opened from a thread without a Looper" +
-                    " and you provided a callback, we need a Handler to invoke your callback");
+                    " (or it has already been closed) and you provided a callback, we need a Handler to invoke your callback");
         }
 
         // We need to use the same configuration to open a background SharedGroup (i.e Realm)
@@ -1171,7 +1172,7 @@ public final class Realm extends BaseRealm {
      * Similar to {@link #executeTransactionAsync(Transaction)}.
      *
      * @param transaction {@link io.realm.Realm.Transaction} to execute.
-     * @param onSuccess callback invoked when the transaction succeed.
+     * @param onSuccess callback invoked when the transaction succeeds.
      * @return a {@link RealmAsyncTask} representing a cancellable task.
      * @throws IllegalArgumentException if the {@code transaction} is {@code null}, or if the realm is opened from another thread.
      */
@@ -1201,7 +1202,7 @@ public final class Realm extends BaseRealm {
      * Similar to {@link #executeTransactionAsync(Transaction)}.
      *
      * @param transaction {@link io.realm.Realm.Transaction} to execute.
-     * @param onSuccess callback invoked when the transaction succeed.
+     * @param onSuccess callback invoked when the transaction succeeds.
      * @param onError callback invoked when the transaction failed.
      * @return a {@link RealmAsyncTask} representing a cancellable task.
      * @throws IllegalArgumentException if the {@code transaction} is {@code null}, or if the realm is opened from another thread.
@@ -1214,7 +1215,7 @@ public final class Realm extends BaseRealm {
         // we can use to deliver the result
         if ((onSuccess != null || onError != null)  && handler == null) {
             throw new IllegalStateException("Your Realm is opened from a thread without a Looper" +
-                    " and you provided a callback, we need a Handler to invoke your callback");
+                    " (or it has already been closed) and you provided a callback, we need a Handler to invoke your callback");
         }
 
         // We need to use the same configuration to open a background SharedGroup (i.e Realm)
@@ -1271,13 +1272,22 @@ public final class Realm extends BaseRealm {
                                 }
                             });
                         }
-                        if (onError != null && exception[0] != null) {
-                            handler.post(new Runnable() {
-                                @Override
-                                public void run() {
-                                    onError.onError(exception[0]);
-                                }
-                            });
+                        if (exception[0] != null) {
+                            if (onError != null) {
+                                handler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        onError.onError(exception[0]);
+                                    }
+                                });
+                            } else {
+                                handler.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        throw new RuntimeException(exception[0]);
+                                    }
+                                });
+                            }
                         }
                     }
                 }

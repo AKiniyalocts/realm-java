@@ -125,7 +125,6 @@ public class RealmAsyncQueryTests {
         });
     }
 
-    @Test
     @RunTestInLooperThread
     public void executeTransaction_async_onError() throws Throwable {
         assertEquals(0, looperThread.realm.allObjects(Owner.class).size());
@@ -133,9 +132,7 @@ public class RealmAsyncQueryTests {
         looperThread.realm.executeTransactionAsync(new Realm.Transaction() {
             @Override
             public void execute(Realm realm) {
-                Owner owner = realm.createObject(Owner.class);
-                owner.setName("Owner");
-                realm.beginTransaction(); //Nested transaction should throw IllegalStateException
+                throw new RuntimeException("Oh! What a Terrible Failure");
 
             }
         }, new Realm.Transaction.OnError() {
