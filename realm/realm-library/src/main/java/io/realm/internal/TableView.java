@@ -81,14 +81,6 @@ public class TableView implements TableOrView, Closeable {
         this.query = tableView.query;
     }
 
-    /**
-     * Creates a copy of already created Java TableView Object.
-     * The method is not supposed to be called by the user of the db. The method is for internal use only.
-     */
-    public TableView getCopy() {
-        return new TableView(this);
-    }
-
     @Override
     public Table getTable() {
         return parent;
@@ -823,6 +815,15 @@ public class TableView implements TableOrView, Closeable {
         // Execute the disposal of abandoned realm objects each time a new realm object is created
         this.context.executeDelayedDisposal();
         nativeDistinct(nativePtr, columnIndex);
+    }
+
+    /**
+     * Creates a copy of already created Java TableView Object.
+     *
+     * @return A copy of the existing TableView Object.
+     */
+    public TableView getCopy() {
+        return new TableView(this);
     }
 
     @Override
