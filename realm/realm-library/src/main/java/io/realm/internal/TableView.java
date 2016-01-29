@@ -68,6 +68,27 @@ public class TableView implements TableOrView, Closeable {
         this.query = query;
     }
 
+    /**
+     * Creates a copy of already created Java TableView Object.
+     * The method is not supposed to be called by the user of the db. The method is for internal use only.
+     *
+     * @param tableView An existing TableView
+     */
+    protected TableView(TableView tableView) {
+        this.context = tableView.context;
+        this.parent = tableView.parent;
+        this.nativePtr = nativeGetCopy(tableView.nativePtr);
+        this.query = tableView.query;
+    }
+
+    /**
+     * Creates a copy of already created Java TableView Object.
+     * The method is not supposed to be called by the user of the db. The method is for internal use only.
+     */
+    public TableView getCopy() {
+        return new TableView(this);
+    }
+
     @Override
     public Table getTable() {
         return parent;
@@ -810,6 +831,7 @@ public class TableView implements TableOrView, Closeable {
     }
 
     static native void nativeClose(long nativeViewPtr);
+    private native long nativeGetCopy(long nativeViewPtr);
     private native long nativeSize(long nativeViewPtr);
     private native long nativeGetSourceRowIndex(long nativeViewPtr, long rowIndex);
     private native long nativeGetColumnCount(long nativeViewPtr);

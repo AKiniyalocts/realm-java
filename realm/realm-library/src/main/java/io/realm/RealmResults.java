@@ -582,7 +582,8 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
         if (tableOrView instanceof Table) {
             tableView = ((Table) tableOrView).getDistinctView(columnIndex);
         } else {
-            tableView = ((TableView) tableOrView).getTable().getDistinctView(columnIndex);
+            tableView = ((TableView) tableOrView).getCopy();
+            tableView.distinct(columnIndex);
         }
 
         RealmResults<E> realmResults;

@@ -1110,13 +1110,19 @@ public class RealmQuery<E extends RealmObject> {
         if (fieldName.contains(".")) {
             throw new IllegalArgumentException("Distinct operation on linked properties is not supported: " + fieldName);
         }
-        Table table = this.table.getTable();
-        long columnIndex = table.getColumnIndex(fieldName);
+        Table tbl = this.table.getTable();
+        long columnIndex = tbl.getColumnIndex(fieldName);
         if (columnIndex == -1) {
             throw new IllegalArgumentException(String.format("Field name '%s' does not exist.", fieldName));
         }
-        TableView tableView = this.query.findAll();
-        tableView.distinct(columnIndex);
+
+        TableView tableView;
+        if (this.table instanceof Table) {
+            tableView = ((Table) this.table).getDistinctView(columnIndex);
+        } else {
+            tableView = ((TableView) this.table).getCopy();
+            tableView.distinct(columnIndex);
+        }
 
         RealmResults<E> realmResults;
         if (isDynamicQuery()) {
