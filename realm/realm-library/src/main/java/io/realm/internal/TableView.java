@@ -74,17 +74,17 @@ public class TableView implements TableOrView, Closeable {
      *
      * @param tableView An existing TableView
      */
-    protected TableView(TableView tv, long nativeViewPtr) {
+    protected TableView(TableView tableView, long nativeViewPtr) {
         long nativeQueryPtr = nativeWhere(nativeViewPtr);
         TableQuery q;
         try {
-            q = new TableQuery(tv.context, tv.parent, nativeQueryPtr, this);
+            q = new TableQuery(tableView.context, tableView.parent, nativeQueryPtr, this);
         } catch (RuntimeException e) {
             TableQuery.nativeClose(nativeQueryPtr);
             throw e;
         }
-        this.context = tv.context;
-        this.parent = tv.parent;
+        this.context = tableView.context;
+        this.parent = tableView.parent;
         this.nativePtr = nativeViewPtr;
         this.query = q;
     }
