@@ -74,11 +74,19 @@ public class TableView implements TableOrView, Closeable {
      *
      * @param tableView An existing TableView
      */
-    protected TableView(TableView tableView) {
-        this.context = tableView.context;
-        this.parent = tableView.parent;
-        this.nativePtr = nativeGetCopy(tableView.nativePtr);
-        this.query = tableView.query;
+    protected TableView(TableView tv, long nativeViewPtr) {
+        long nativeQueryPtr = nativeWhere(nativeViewPtr);
+        TableQuery q;
+        try {
+            q = new TableQuery(tv.context, tv.parent, nativeQueryPtr, this);
+        } catch (RuntimeException e) {
+            TableQuery.nativeClose(nativeQueryPtr);
+            throw e;
+        }
+        this.context = tv.context;
+        this.parent = tv.parent;
+        this.nativePtr = nativeViewPtr;
+        this.query = q;
     }
 
     @Override
@@ -823,7 +831,15 @@ public class TableView implements TableOrView, Closeable {
      * @return A copy of the existing TableView Object.
      */
     public TableView getCopy() {
-        return new TableView(this);
+        // Execute the disposal of abandoned realm objects each time a new realm object is created
+        this.context.executeDelayedDisposal();
+        long nativeViewPtr = nativeGetCopy(this.nativePtr);
+        try {
+            return new TableView(this, nativeViewPtr);
+        } catch (RuntimeException e) {
+            TableView.nativeClose(nativeViewPtr);
+            throw e;
+        }
     }
 
     @Override
