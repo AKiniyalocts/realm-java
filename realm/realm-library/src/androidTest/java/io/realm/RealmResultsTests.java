@@ -34,7 +34,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import dalvik.annotation.TestTarget;
 import io.realm.entities.AllJavaTypes;
 import io.realm.entities.AllTypes;
 import io.realm.entities.AnnotationIndexTypes;
