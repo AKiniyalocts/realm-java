@@ -131,18 +131,6 @@ JNIEXPORT void JNICALL Java_io_realm_internal_TableView_nativeClose(
     delete TV(nativeViewPtr);
 }
 
-JNIEXPORT jlong JNICALL Java_io_realm_internal_TableView_nativeGetCopy(
-    JNIEnv* env, jobject, jlong nativeViewPtr)
-{
-    if (!VIEW_VALID_AND_IN_SYNC(env, nativeViewPtr))
-        return 0;
-    try {
-        TableView* copiedTableView = new TableView(*TV(nativeViewPtr));
-        return reinterpret_cast<jlong>(copiedTableView);
-    } CATCH_STD()
-    return 0;
-}
-
 JNIEXPORT jlong JNICALL Java_io_realm_internal_TableView_nativeSize(
     JNIEnv* env, jobject, jlong nativeViewPtr)
 {

@@ -17,14 +17,6 @@ JNIEXPORT void JNICALL Java_io_realm_internal_TableView_nativeClose
 
 /*
  * Class:     io_realm_internal_TableView
- * Method:    nativeGetCopy
- * Signature: (J)J
- */
-JNIEXPORT jlong JNICALL Java_io_realm_internal_TableView_nativeGetCopy
-  (JNIEnv *, jobject, jlong);
-
-/*
- * Class:     io_realm_internal_TableView
  * Method:    nativeSize
  * Signature: (J)J
  */

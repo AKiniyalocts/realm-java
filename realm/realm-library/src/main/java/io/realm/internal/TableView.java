@@ -68,28 +68,6 @@ public class TableView implements TableOrView, Closeable {
         this.query = query;
     }
 
-    /**
-     * Creates a copy of already created Java TableView Object.
-     * The method is not supposed to be called by the user of the db. The method is for internal use only.
-     *
-     * @param tableView An existing TableView
-     * @param nativeViewPtr A pointer to a clone of the existing TableView.
-     */
-    protected TableView(TableView tableView, long nativeViewPtr) {
-        long nativeQueryPtr = nativeWhere(nativeViewPtr);
-        TableQuery q;
-        try {
-            q = new TableQuery(tableView.context, tableView.parent, nativeQueryPtr, this);
-        } catch (RuntimeException e) {
-            TableQuery.nativeClose(nativeQueryPtr);
-            throw e;
-        }
-        this.context = tableView.context;
-        this.parent = tableView.parent;
-        this.nativePtr = nativeViewPtr;
-        this.query = q;
-    }
-
     @Override
     public Table getTable() {
         return parent;
@@ -826,30 +804,12 @@ public class TableView implements TableOrView, Closeable {
         nativeDistinct(nativePtr, columnIndex);
     }
 
-    /**
-     * Creates a copy of already created Java TableView Object.
-     *
-     * @return A copy of the existing TableView Object.
-     */
-    public TableView getCopy() {
-        // Execute the disposal of abandoned realm objects each time a new realm object is created
-        this.context.executeDelayedDisposal();
-        long nativeViewPtr = nativeGetCopy(this.nativePtr);
-        try {
-            return new TableView(this, nativeViewPtr);
-        } catch (RuntimeException e) {
-            TableView.nativeClose(nativeViewPtr);
-            throw e;
-        }
-    }
-
     @Override
     public long sync() {
         return nativeSync(nativePtr);
     }
 
     static native void nativeClose(long nativeViewPtr);
-    private native long nativeGetCopy(long nativeViewPtr);
     private native long nativeSize(long nativeViewPtr);
     private native long nativeGetSourceRowIndex(long nativeViewPtr, long rowIndex);
     private native long nativeGetColumnCount(long nativeViewPtr);
