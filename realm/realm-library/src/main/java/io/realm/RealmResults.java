@@ -576,22 +576,15 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
     public RealmResults<E> distinct(String fieldName) {
         realm.checkIfValid();
         long columnIndex = getColumnIndex(fieldName);
+
         TableOrView tableOrView = getTable();
-
-        TableView tableView;
         if (tableOrView instanceof Table) {
-            tableView = ((Table) tableOrView).getDistinctView(columnIndex);
+            TableView tableView = ((Table) tableOrView).getDistinctView(columnIndex);
+            this.table = tableView;
         } else {
-            tableView = ((TableView) tableOrView).getTable().getDistinctView(columnIndex);
+            ((TableView) tableOrView).distinct(columnIndex);
         }
-
-        RealmResults<E> realmResults;
-        if (realm instanceof DynamicRealm) {
-            realmResults =  (RealmResults<E>) RealmResults.createFromDynamicTableOrView(realm, tableView, className);
-        } else {
-            realmResults = RealmResults.createFromTableOrView(realm, tableView, classSpec);
-        }
-        return realmResults;
+        return this;
     }
 
     // Deleting

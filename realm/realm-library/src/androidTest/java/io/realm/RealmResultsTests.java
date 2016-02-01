@@ -1311,18 +1311,24 @@ public class RealmResultsTests {
     }
 
     @Test
-    public void distinct_resultsWithTableView() {
+    public void distinct_restrictedByPreviousDistinct() {
         final long numberOfBlocks = 25;
-        final long numberOfObjects = 10; // must be greater than 1
+        final long numberOfObjects = 10;
         populateForDistinct(realm, numberOfBlocks, numberOfObjects, false);
 
-        RealmResults<AnnotationIndexTypes> rootResults = realm.where(AnnotationIndexTypes.class).findAll();
-        assertEquals("Total Count", numberOfBlocks * numberOfBlocks * numberOfObjects, rootResults.size());
-        RealmResults<AnnotationIndexTypes> parentResults = rootResults.distinct("indexDate");
-        assertEquals("Distinctive Parent Results - First Trial", numberOfBlocks, parentResults.size());
-        RealmResults<AnnotationIndexTypes> childResults = parentResults.distinct("indexBoolean");
-        assertEquals("Distinctive Child Results", 2, childResults.size());
-        assertEquals("Distinctive Parent Results - Second Trial", numberOfBlocks, parentResults.size());
+        // all objects
+        RealmResults<AnnotationIndexTypes> allResults = realm.where(AnnotationIndexTypes.class).findAll();
+        assertEquals("All Objects Count", numberOfBlocks * numberOfBlocks * numberOfObjects, allResults.size());
+        // distinctive dates
+        RealmResults<AnnotationIndexTypes> distinctDates = allResults.distinct("indexDate");
+        assertEquals("Distinctive Date", numberOfBlocks, distinctDates.size());
+        // distinctive Booleans
+        RealmResults<AnnotationIndexTypes> distinctBooleans = distinctDates.distinct("indexBoolean");
+        assertEquals("Distinctive Booleans", 2, distinctBooleans.size());
+        // all three results are the same object
+        assertTrue(allResults == distinctDates);
+        assertTrue(allResults == distinctBooleans);
+        assertTrue(distinctDates == distinctBooleans);
     }
 
     @Test
