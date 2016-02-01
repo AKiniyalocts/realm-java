@@ -73,6 +73,7 @@ public class TableView implements TableOrView, Closeable {
      * The method is not supposed to be called by the user of the db. The method is for internal use only.
      *
      * @param tableView An existing TableView
+     * @param nativeViewPtr A pointer to a clone of the existing TableView.
      */
     protected TableView(TableView tableView, long nativeViewPtr) {
         long nativeQueryPtr = nativeWhere(nativeViewPtr);

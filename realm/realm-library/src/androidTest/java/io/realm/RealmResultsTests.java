@@ -34,6 +34,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import dalvik.annotation.TestTarget;
 import io.realm.entities.AllJavaTypes;
 import io.realm.entities.AllTypes;
 import io.realm.entities.AnnotationIndexTypes;
@@ -1308,6 +1309,21 @@ public class RealmResultsTests {
             RealmResults<AnnotationIndexTypes> distinct = realm.where(AnnotationIndexTypes.class).findAll().distinct("index" + fieldName);
             assertEquals("index" + fieldName, numberOfBlocks, distinct.size());
         }
+    }
+
+    @Test
+    public void distinct_resultsWithTableView() {
+        final long numberOfBlocks = 25;
+        final long numberOfObjects = 10; // must be greater than 1
+        populateForDistinct(realm, numberOfBlocks, numberOfObjects, false);
+
+        RealmResults<AnnotationIndexTypes> rootResults = realm.where(AnnotationIndexTypes.class).findAll();
+        assertEquals("Total Count", numberOfBlocks * numberOfBlocks * numberOfObjects, rootResults.size());
+        RealmResults<AnnotationIndexTypes> parentResults = rootResults.distinct("indexDate");
+        assertEquals("Distinctive Parent Results - First Trial", numberOfBlocks, parentResults.size());
+        RealmResults<AnnotationIndexTypes> childResults = parentResults.distinct("indexBoolean");
+        assertEquals("Distinctive Child Results", 2, childResults.size());
+        assertEquals("Distinctive Parent Results - Second Trial", numberOfBlocks, parentResults.size());
     }
 
     @Test
