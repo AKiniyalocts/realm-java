@@ -1321,7 +1321,7 @@ public class RealmResultsTests {
         assertEquals("All Objects Count", numberOfBlocks * numberOfBlocks * numberOfObjects, allResults.size());
         // distinctive dates
         RealmResults<AnnotationIndexTypes> distinctDates = allResults.distinct("indexDate");
-        assertEquals("Distinctive Date", numberOfBlocks, distinctDates.size());
+        assertEquals("Distinctive Dates", numberOfBlocks, distinctDates.size());
         // distinctive Booleans
         RealmResults<AnnotationIndexTypes> distinctBooleans = distinctDates.distinct("indexBoolean");
         assertEquals("Distinctive Booleans", 2, distinctBooleans.size());
