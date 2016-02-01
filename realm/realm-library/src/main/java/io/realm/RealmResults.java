@@ -76,7 +76,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
     private static final long TABLE_VIEW_VERSION_REALM_LIST_DELETED = -2;
     private long currentTableViewVersion = TABLE_VIEW_VERSION_NONE;
 
-    private final TableQuery query;
+    private TableQuery query;
     private final List<RealmChangeListener> listeners = new CopyOnWriteArrayList<RealmChangeListener>();
     private Future<Long> pendingQuery;
     private boolean isCompleted = false;
@@ -612,7 +612,9 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
         if (!syncToCheckIfValid("Calling where on RealmResults whose parent RealmList has been deleted already.")) {
             throw new IllegalStateException("The RealmList which this RealmResults is created on has been deleted.");
         }
-        return RealmQuery.createQueryFromResultView(this, this.table).distinctAsync(fieldName);
+        this.query = getTable().where();
+        RealmQuery.distinctAsyncQuery(this, this.table, fieldName);
+        return this;
     }
 
     // Deleting

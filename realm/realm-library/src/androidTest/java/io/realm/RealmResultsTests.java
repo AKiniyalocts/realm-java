@@ -1470,9 +1470,9 @@ public class RealmResultsTests {
                     Realm.asyncQueryExecutor.pause();
 
                     final RealmResults<AnnotationIndexTypes> distinctBool = allBool.distinctAsync("indexBoolean");
-                    final RealmResults<AnnotationIndexTypes> distinctLong = allBool.distinctAsync("indexLong");
-                    final RealmResults<AnnotationIndexTypes> distinctDate = allBool.distinctAsync("indexDate");
-                    final RealmResults<AnnotationIndexTypes> distinctString = allBool.distinctAsync("indexString");
+                    final RealmResults<AnnotationIndexTypes> distinctLong = allLong.distinctAsync("indexLong");
+                    final RealmResults<AnnotationIndexTypes> distinctDate = allDate.distinctAsync("indexDate");
+                    final RealmResults<AnnotationIndexTypes> distinctString = allString.distinctAsync("indexString");
 
                     assertFalse(distinctBool.isLoaded());
                     assertTrue(distinctBool.isValid());

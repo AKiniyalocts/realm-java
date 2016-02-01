@@ -113,12 +113,14 @@ public class RealmQuery<E extends RealmObject> {
     }
 
     @SuppressWarnings("unchecked")
-    static <E extends RealmObject> RealmQuery<E> createQueryFromResultView(RealmResults<E> queryResults, TableOrView table) {
+    static <E extends RealmObject> void distinctAsyncQuery(RealmResults<E> queryResults, TableOrView table, String fieldName) {
+        RealmQuery<E> realmQuery;
         if (queryResults.classSpec != null) {
-            return new RealmQuery<E>(queryResults, table, queryResults.classSpec);
+            realmQuery = new RealmQuery<E>(queryResults, table, queryResults.classSpec);
         } else {
-            return new RealmQuery(queryResults, table, queryResults.className);
+            realmQuery = new RealmQuery(queryResults, table, queryResults.className);
         }
+        realmQuery.distinctAsyncQuery(queryResults, fieldName);
     }
 
     /**
@@ -1248,6 +1250,79 @@ public class RealmQuery<E extends RealmObject> {
 
         realmResults.setPendingQuery(pendingQuery);
         return realmResults;
+    }
+
+    private void distinctAsyncQuery(RealmResults<E> realmResults, String fieldName) {
+        checkQueryIsNotReused();
+        if (fieldName.contains(".")) {
+            throw new IllegalArgumentException("Distinct operation on linked properties is not supported: " + fieldName);
+        }
+        Table tbl = this.table.getTable();
+        final long columnIndex = tbl.getColumnIndex(fieldName);
+        if (columnIndex == -1) {
+            throw new IllegalArgumentException(String.format("Field name '%s' does not exist.", fieldName));
+        }
+        if (!tbl.hasSearchIndex(columnIndex)) {
+            throw new UnsupportedOperationException(String.format("Field name '%s' must be indexed in order to use it for distinct queries.", fieldName));
+        }
+
+        final WeakReference<Handler> weakHandler = getWeakReferenceHandler();
+        // handover the query (to be used by a worker thread)
+        final long handoverQueryPointer = query.handoverQuery(realm.sharedGroupManager.getNativePointer());
+
+        // save query arguments (for future update)
+        argumentsHolder = new ArgumentsHolder(ArgumentsHolder.TYPE_FIND_AND_GET_DISTINCT_VIEW);
+        argumentsHolder.columnIndex = columnIndex;
+
+        // we need to use the same configuration to open a background SharedGroup (i.e Realm)
+        // to perform the query
+        final RealmConfiguration realmConfiguration = realm.getConfiguration();
+        final WeakReference<RealmResults<? extends RealmObject>> weakRealmResults = realm.handlerController.addToAsyncRealmResults(realmResults, this);
+
+        final Future<Long> pendingQuery = Realm.asyncQueryExecutor.submit(new Callable<Long>() {
+            @Override
+            public Long call() throws Exception {
+                if (!Thread.currentThread().isInterrupted()) {
+                    SharedGroup sharedGroup = null;
+
+                    try {
+                        sharedGroup = new SharedGroup(realmConfiguration.getPath(),
+                                SharedGroup.IMPLICIT_TRANSACTION,
+                                realmConfiguration.getDurability(),
+                                realmConfiguration.getEncryptionKey());
+
+                        long handoverTableViewPointer = query.
+                                findDistinctViewWithHandover(sharedGroup.getNativePointer(),
+                                        sharedGroup.getNativeReplicationPointer(),
+                                        handoverQueryPointer,
+                                        columnIndex);
+
+                        QueryUpdateTask.Result result = QueryUpdateTask.Result.newRealmResultsResponse();
+                        result.updatedTableViews.put(weakRealmResults, handoverTableViewPointer);
+                        result.versionID = sharedGroup.getVersion();
+                        closeSharedGroupAndSendMessageToHandler(sharedGroup,
+                                weakHandler, HandlerController.COMPLETED_ASYNC_REALM_RESULTS, result);
+
+                        return handoverTableViewPointer;
+                    } catch (Exception e) {
+                        RealmLog.e(e.getMessage(), e);
+                        closeSharedGroupAndSendMessageToHandler(sharedGroup,
+                                weakHandler, HandlerController.REALM_ASYNC_BACKGROUND_EXCEPTION, new Error(e));
+
+                    } finally {
+                        if (sharedGroup != null && !sharedGroup.isClosed()) {
+                            sharedGroup.close();
+                        }
+                    }
+                } else {
+                    TableQuery.nativeCloseQueryHandover(handoverQueryPointer);
+                }
+
+                return INVALID_NATIVE_POINTER;
+            }
+        });
+
+        realmResults.setPendingQuery(pendingQuery);
     }
 
     // Aggregates
